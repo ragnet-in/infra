@@ -1,12 +1,11 @@
 import { Mastra, Agent } from "@mastra/core";
-import { pgVector } from "./db";
+import { pgVector } from "./vectorDb";
 
 export let mastra: Mastra;
 
-// Initialize Mastra instance
-export const initialiseMastra = (devRelAgent: Agent) => {
+export const initialiseMastra = (devRelAgent?: Agent) => {
   mastra = new Mastra({
-    agents: { devRelAgent },
+    ...(devRelAgent && { agents: { devRelAgent } }),
     vectors: { pgVector },
   });
   return mastra;

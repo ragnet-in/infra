@@ -20,16 +20,16 @@ export async function fetchFromGitHub(
     )
     .map((file: any) => ({
       path: file.path,
-      url: `https://raw.githubusercontent.com/${orgName}/${repoName}/${branch}/${file.path}`,
+      url: `https://github.com/${orgName}/${repoName}/blob/${branch}/${file.path}`,
     }));
 
   const pages = new Map<string, string>();
 
   for (const file of files) {
-    console.log(`Fetching: ${file.path}`);
+    console.log(`Fetching: ${file.url}`);
     const response = await fetch(file.url);
     const content = await response.text();
-    pages.set(file.path, content);
+    pages.set(file.url, content);
   }
 
   console.log(`Found ${pages.size} MDX files`);

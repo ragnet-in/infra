@@ -1,25 +1,14 @@
 import { Agent } from "@mastra/core/agent";
 import { openai } from "@ai-sdk/openai";
 import { createVectorQueryTool } from "@mastra/rag";
-import { getIndexName } from "./db";
+import { getIndexName } from "./vectorDb";
 
-let vectorQueryTool: ReturnType<typeof createVectorQueryTool>;
-
-export const initialiseVectorQueryTool = (
-  orgName: string,
-  repoName: string
-) => {
-  // Create a tool for semantic search over our paper embeddings
-  vectorQueryTool = createVectorQueryTool({
+export const initialiseDevRelAgent = (orgName: string, repoName: string) => {
+  const vectorQueryTool = createVectorQueryTool({
     vectorStoreName: "pgVector",
     indexName: getIndexName(orgName, repoName),
     model: openai.embedding("text-embedding-3-small"),
   });
-  return vectorQueryTool;
-};
-
-export const initialiseDevRelAgent = (orgName: string, repoName: string) => {
-  initialiseVectorQueryTool(orgName, repoName);
 
   return new Agent({
     name: `${orgName} Documentation Assistant`,

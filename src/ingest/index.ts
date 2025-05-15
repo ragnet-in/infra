@@ -1,7 +1,7 @@
 import { config } from "dotenv";
 import { generateChunks, saveChunksToCsv, fetchFromGitHub } from "./fetcher";
 import { generateEmbeddings } from "./ai";
-import { createIndex, upsert, createVectorStore, getIndexName } from "../db";
+import { createIndex, upsert, createVectorStore, getIndexName } from "../vectorDb";
 import { mastra } from "../mastra";
 config();
 
