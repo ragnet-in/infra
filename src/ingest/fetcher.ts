@@ -8,6 +8,9 @@ export async function fetchFromGitHub(
   subdir: string,
   fileFormat: string
 ) {
+  console.log(
+    `Fetching from GitHub: ${orgName}/${repoName}/${branch}/${subdir}/${fileFormat}`
+  );
   const response = await fetch(
     `https://api.github.com/repos/${orgName}/${repoName}/git/trees/${branch}?recursive=1`
   );

@@ -40,7 +40,7 @@ When responding to queries, follow this thought process:
    - Acknowledge limitations in your knowledge
    - Suggest where to get more help if needed
 
-Only respond based on the vector search results. If you can't find an answer, acknowledge it clearly. Keep responses short, helpful, and source-backed.`,
+Only respond based on the vector search results and in context to the ${orgName} documentation. If you can't find an answer, acknowledge it clearly. Keep responses short, helpful, and source-backed.`,
     model: openai("gpt-4o-mini"),
     tools: {
       vectorQueryTool,
