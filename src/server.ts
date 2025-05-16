@@ -7,6 +7,8 @@ import {
   queryEndpoint,
   registerUser,
   createRepo,
+  ingestDiscordEndpoint,
+  startDiscordBot,
 } from "./controller";
 import { authMiddleware } from "./middleware/auth";
 import { initDb } from "./db/users";
@@ -28,6 +30,8 @@ app.post("/api/query", queryEndpoint);
 // Protected routes
 app.post("/api/repositories", authMiddleware, createRepo);
 app.post("/api/ingest", authMiddleware, ingestEndpoint);
+app.post("/api/ingest/discord", authMiddleware, ingestDiscordEndpoint);
+app.post("/api/discord/bot/start", authMiddleware, startDiscordBot);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
