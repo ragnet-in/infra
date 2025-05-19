@@ -6,7 +6,7 @@ import {
   Message,
 } from "discord.js";
 
-export async function fetchFromDiscord(token: string, guildId: string) {
+export async function fetchFromDiscord(guildId: string) {
   console.log(`Fetching from Discord: Guild ${guildId}`);
 
   const client = new Client({
@@ -27,7 +27,6 @@ export async function fetchFromDiscord(token: string, guildId: string) {
 
         for (const [_, channel] of channels) {
           if (channel?.isTextBased() && channel instanceof TextChannel) {
-            console.log(`Fetching messages from #${channel.name}`);
             const messages = await fetchChannelMessages(channel);
 
             // Group messages by day
@@ -62,7 +61,7 @@ export async function fetchFromDiscord(token: string, guildId: string) {
       }
     });
 
-    client.login(token);
+    client.login(process.env.DISCORD_BOT_TOKEN);
   });
 
   console.log(`Found ${pages.size} conversation chunks`);
@@ -80,9 +79,6 @@ async function fetchChannelMessages(
     if (lastId) options.before = lastId;
 
     const messages = await channel.messages.fetch(options);
-    console.log(
-      `Fetched ${(messages as any).size} messages from #${channel.name}`
-    );
     if ((messages as any).size === 0) break;
 
     allMessages = allMessages.concat(messages as any);

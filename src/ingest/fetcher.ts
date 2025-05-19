@@ -1,30 +1,33 @@
 import { MDocument } from "@mastra/rag";
 import path from "path";
 import fs from "fs";
-export async function fetchFromGitHub(
-  orgName: string,
-  repoName: string,
-  branch: string,
-  subdir: string,
-  fileFormat: string
-) {
-  console.log(
-    `Fetching from GitHub: ${orgName}/${repoName}/${branch}/${subdir}/${fileFormat}`
+export async function fetchFromGitHub(orgName: string, repoName: string) {
+  console.log(`Fetching from GitHub: ${orgName}/${repoName}`);
+
+  // First, get the repository info to find the default branch
+  interface GitHubRepoResponse {
+    default_branch: string;
+    [key: string]: any;
+  }
+
+  const repoResponse = await fetch(
+    `https://api.github.com/repos/${orgName}/${repoName}`
   );
+  const repoData = (await repoResponse.json()) as GitHubRepoResponse;
+  console.log("Repository data fetched", repoData);
+  const defaultBranch = repoData.default_branch;
+
   const response = await fetch(
-    `https://api.github.com/repos/${orgName}/${repoName}/git/trees/${branch}?recursive=1`
+    `https://api.github.com/repos/${orgName}/${repoName}/git/trees/${defaultBranch}?recursive=1`
   );
   const data = await response.json();
 
-  const files = (data as any).tree
-    .filter(
-      (file: any) =>
-        file.path.startsWith(subdir) && file.path.endsWith(fileFormat)
-    )
-    .map((file: any) => ({
-      path: file.path,
-      url: `https://github.com/${orgName}/${repoName}/blob/${branch}/${file.path}`,
-    }));
+  console.log("GitHub data fetched", data);
+
+  const files = (data as any).tree.map((file: any) => ({
+    path: file.path,
+    url: `https://github.com/${orgName}/${repoName}/blob/${defaultBranch}/${file.path}`,
+  }));
 
   const pages = new Map<string, string>();
 

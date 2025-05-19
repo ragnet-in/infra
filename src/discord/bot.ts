@@ -1,15 +1,18 @@
 import { Client, GatewayIntentBits, Message, ThreadChannel } from "discord.js";
 import { initialiseDevRelAgent } from "../agent";
 import { initialiseMastra } from "../mastra";
+import {
+  createConversation,
+  addMessageToConversation,
+  getConversationHistory,
+} from "../db/conversations";
 
 export class DiscordBot {
   private client: Client;
+  private orgId: string;
   private orgName: string;
-  private repoName: string;
 
-  constructor(orgName: string, repoName: string) {
-    this.orgName = orgName;
-    this.repoName = repoName;
+  constructor(orgId: string, orgName: string) {
     this.client = new Client({
       intents: [
         GatewayIntentBits.Guilds,
@@ -18,6 +21,8 @@ export class DiscordBot {
       ],
     });
 
+    this.orgId = orgId;
+    this.orgName = orgName;
     this.setupEventHandlers();
   }
 
@@ -39,25 +44,48 @@ export class DiscordBot {
 
   private async handleBotMention(message: Message) {
     try {
-      // Remove the bot mention and clean up the question
       const question = message.content.replace(/<@!\d+>/g, "").trim();
-
-      // Create a better thread name
       const threadName = this.createThreadName(question);
 
-      // Create a new thread from the message
+      // Create a new thread
       const thread = await message.startThread({
         name: threadName,
-        autoArchiveDuration: 60, // Archive after 1 hour
+        autoArchiveDuration: 60,
       });
 
-      // Get response from the agent
-      const devRelAgent = initialiseDevRelAgent(this.orgName, this.repoName);
+      // Create or get conversation
+      const conversation = await createConversation(this.orgId); // see how to do on discord per thread basis
+
+      // Add user message to history
+      await addMessageToConversation(conversation.id, question, "user");
+
+      // Get conversation history
+      const history = await getConversationHistory(conversation.id);
+
+      // Get response from the agent with context
+      const devRelAgent = initialiseDevRelAgent(this.orgId, this.orgName);
       const mastra = initialiseMastra(devRelAgent);
       const agent = mastra.getAgent("devRelAgent");
-      const response = await agent.generate(question);
 
-      // Send the response in the thread
+      // Include conversation history in the prompt
+      const contextualQuery = `
+Previous conversation:
+${history.map((msg) => `${msg.role}: ${msg.content}`).join("\n")}
+
+Current question:
+${question}
+`;
+
+      const response = await agent.generate(contextualQuery);
+
+      // Store assistant's response
+      await addMessageToConversation(
+        conversation.id,
+        response.text,
+        "assistant"
+      );
+
+      // Send the response
       await thread.send({
         content: response.text,
       });
@@ -90,7 +118,7 @@ export class DiscordBot {
 
     // If the name is too short or empty, use a default
     if (threadName.length < 3) {
-      threadName = "Question about " + this.repoName;
+      threadName = "Question about " + this.orgName;
     }
 
     return threadName;

@@ -14,59 +14,48 @@ config();
 export async function loadDataFromGithub(
   orgName: string,
   repoName: string,
-  branch: string,
-  subdir: string,
-  fileFormat: string
+  orgId: string
 ) {
   // Fetch all MDX files
-  const pages = await fetchFromGitHub(
-    orgName,
-    repoName,
-    branch,
-    subdir,
-    fileFormat
-  );
+  const pages = await fetchFromGitHub(orgName, repoName);
 
   // Process each page
   const allChunks = await generateChunks(pages);
 
   // Create CSV content
-  saveChunksToCsv(allChunks, getIndexName(orgName, repoName));
+  saveChunksToCsv(allChunks, getIndexName(orgId));
 
   // Generate embeddings
   const embeddings = await generateEmbeddings(allChunks);
+  console.log("Embeddings generated");
 
   const vectorStore = createVectorStore(mastra);
-
+  console.log("Vector store created");
   // Create an index for our docs chunks
-  await createIndex(vectorStore, getIndexName(orgName, repoName));
-
+  await createIndex(vectorStore, getIndexName(orgId));
+  console.log("Index created");
   // Store embeddings
   await upsert(
     vectorStore,
-    getIndexName(orgName, repoName),
+    getIndexName(orgId),
     embeddings,
     allChunks.map((chunk) => ({
       text: chunk.text,
       source: chunk.source,
     }))
   );
+  console.log("Upserted");
 }
 
-export async function loadDataFromDiscord(
-  token: string,
-  guildId: string,
-  orgName: string,
-  repoName: string
-) {
+export async function loadDataFromDiscord(guildId: string, orgId: string) {
   // Fetch all Discord messages
-  const pages = await fetchFromDiscord(token, guildId);
+  const pages = await fetchFromDiscord(guildId);
 
   // Process each page
   const allChunks = await generateChunks(pages);
 
   // Create CSV content
-  saveChunksToCsv(allChunks, getIndexName(orgName, repoName));
+  saveChunksToCsv(allChunks, getIndexName(orgId));
 
   // Generate embeddings
   const embeddings = await generateEmbeddings(allChunks);
@@ -74,12 +63,12 @@ export async function loadDataFromDiscord(
   const vectorStore = createVectorStore(mastra);
 
   // Create an index for our docs chunks
-  await createIndex(vectorStore, getIndexName(orgName, repoName));
+  await createIndex(vectorStore, getIndexName(orgId));
 
   // Store embeddings
   await upsert(
     vectorStore,
-    getIndexName(orgName, repoName),
+    getIndexName(orgId),
     embeddings,
     allChunks.map((chunk) => ({
       text: chunk.text,

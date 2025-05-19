@@ -3,68 +3,170 @@ import { loadDataFromDiscord, loadDataFromGithub } from "./ingest";
 import { initialiseDevRelAgent } from "./agent";
 import jwt from "jsonwebtoken";
 import { AuthRequest } from "./types";
-import { createUser, createRepository, getRepositoryById } from "./db/users";
+import { createUser, findUserByEmail, isPasswordMatch } from "./db/users";
 import { config } from "dotenv";
 import { initialiseMastra } from "./mastra";
 import { DiscordBot } from "./discord/bot";
-
+import {
+  createOrgInDb,
+  getOrganizationById,
+  getUserOrganizations,
+  isOrgOwner,
+} from "./db/orgs";
+import { createSourceInDb, getOrganizationSources } from "./db/sources";
+import { Source, SourceConfig } from "./db/types";
+import crypto from "crypto";
+import fetch from "node-fetch";
+import { storeDiscordAuthState, getDiscordAuthState } from "./utils/auth";
+import {
+  createConversation,
+  addMessageToConversation,
+  getConversationHistory,
+  getConversationsFromOrganization,
+  getDashboardAnalyticsFromDb,
+} from "./db/conversations";
 config();
 
 let discordBot: DiscordBot | null = null;
 
-export const registerUser = async (req: Request, res: Response) => {
+export const authenticateUser = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
-    const user = await createUser(email, password);
-    const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET!);
 
-    res.json({ token });
+    // Check if user already exists
+    const existingUser = await findUserByEmail(email);
+    if (existingUser) {
+      const correctPassword = await isPasswordMatch(email, password);
+      if (correctPassword) {
+        const token = jwt.sign(
+          { userId: existingUser.id },
+          process.env.JWT_SECRET!
+        );
+        res.json({ token, userId: existingUser.id });
+        return;
+      } else {
+        res.status(401).json({ error: "Invalid password" });
+        return;
+      }
+    } else {
+      // New user
+      const user = await createUser(email, password);
+      const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET!);
+      res.json({ token, userId: user.id });
+      return;
+    }
   } catch (error) {
+    console.log("Error registering user", error);
     res.status(500).json({ error: "Failed to register user" });
   }
 };
 
-export const createRepo = async (
+export const createOrganization = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { name, orgName, repoName } = req.body;
+    const { name, description } = req.body;
     const userId = req.user!.id;
 
-    const repository = await createRepository(userId, name, orgName, repoName);
-    res.status(201).json(repository);
+    const organization = await createOrgInDb(userId, name, description);
+    res.status(201).json(organization);
   } catch (error) {
     next(error);
   }
 };
 
-export const ingestEndpoint = async (
+export const getOrganizations = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { repoId, branch, subdir, fileFormat } = req.body;
+    if (!req.user) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const userId = req.user.id;
 
-    const repository = await getRepositoryById(repoId);
-    if (!repository) {
-      res.status(404).json({ error: "Repository not found" });
+    const organizations = await getUserOrganizations(userId);
+    res.status(200).json(organizations);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createSource = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { name, type, config, orgId } = req.body;
+    if (!req.user) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    const userId = req.user.id;
+    let source: Source;
+    const typedConfig = config as SourceConfig;
+
+    // Check if user is owner of org
+    const isOwner = await isOrgOwner(orgId, userId);
+    if (!isOwner) {
+      res.status(403).json({ error: "Unauthorized" });
       return;
     }
 
-    await loadDataFromGithub(
-      repository.org_name,
-      repository.repo_name,
-      branch,
-      subdir,
-      fileFormat
-    );
+    let currentSyncAt: Date = new Date();
 
-    res.status(200).json({ message: "Ingestion completed" });
+    // See config for type
+    if (typedConfig.github) {
+      // Parse the url
+      const url = new URL(typedConfig.github.url);
+      const orgName = url.pathname.split("/")[1];
+      const repoName = url.pathname.split("/")[2];
+
+      await loadDataFromGithub(orgName, repoName, orgId);
+      source = await createSourceInDb(orgId, name, type, config, currentSyncAt);
+      res.status(200).json({ message: "GitHub ingestion completed" });
+    } else if (typedConfig.discord) {
+      await loadDataFromDiscord(typedConfig.discord.guild_id, orgId);
+      source = await createSourceInDb(orgId, name, type, config, currentSyncAt);
+
+      if (discordBot) {
+        await discordBot.stop();
+      }
+
+      discordBot = new DiscordBot(orgId, name);
+      await discordBot.start(process.env.DISCORD_BOT_TOKEN!);
+
+      res.status(200).json({ message: "Discord ingestion completed" });
+    } else {
+      res.status(400).json({ error: "Invalid source type" });
+      return;
+    }
+
+    // res.status(201).json(source);
   } catch (error) {
     next(error);
+  }
+};
+
+export const getSources = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { orgId } = req.params;
+    console.log("orgId", orgId);
+    const sources = await getOrganizationSources(orgId);
+    console.log("sources", sources);
+    res.status(200).json(sources);
+  } catch (error) {
+    console.log("error", error);
+    res.status(500).json({ error: "Failed to get sources" });
   }
 };
 
@@ -73,28 +175,48 @@ export const queryEndpoint = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { query, repoId } = req.body;
+    const { query, orgId, conversationId } = req.body;
+    const userId = (req as AuthRequest).user?.id;
 
-    const repository = await getRepositoryById(repoId);
-    if (!repository) {
-      res.status(404).json({ error: "Repository not found" });
+    const organization = await getOrganizationById(orgId);
+    if (!organization) {
+      res.status(404).json({ error: "Organization not found" });
       return;
     }
 
-    const devRelAgent = initialiseDevRelAgent(
-      repository.org_name,
-      repository.repo_name
-    );
-    // Initialize Mastra with the agent
-    const mastra = initialiseMastra(devRelAgent);
+    // Create or get conversation
+    const conversation = conversationId
+      ? { id: conversationId }
+      : await createConversation(orgId, userId);
 
-    // Get the agent from Mastra instance
+    // Add user message to history
+    await addMessageToConversation(conversation.id, query, "user");
+
+    // Get conversation history
+    const history = await getConversationHistory(conversation.id);
+
+    const devRelAgent = initialiseDevRelAgent(orgId, organization.name);
+    const mastra = initialiseMastra(devRelAgent);
     const agent = mastra.getAgent("devRelAgent");
-    const response = await agent.generate(query);
+
+    // Include conversation history in the prompt
+    const contextualQuery = `
+Previous conversation:
+${history.map((msg) => `${msg.role}: ${msg.content}`).join("\n")}
+
+Current question:
+${query}
+`;
+
+    const response = await agent.generate(contextualQuery);
+
+    // Store assistant's response
+    await addMessageToConversation(conversation.id, response.text, "assistant");
 
     res.json({
       success: true,
       response: response.text,
+      conversationId: conversation.id,
     });
   } catch (error) {
     res.status(500).json({
@@ -104,61 +226,198 @@ export const queryEndpoint = async (
   }
 };
 
-export const ingestDiscordEndpoint = async (
+export const initiateDiscordAuth = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { token, guildId, repoId } = req.body;
-
-    const repository = await getRepositoryById(repoId);
-    if (!repository) {
-      res.status(404).json({ error: "Repository not found" });
+    const { orgId } = req.body;
+    if (!req.user) {
+      res.status(401).json({ error: "Unauthorized" });
       return;
     }
 
-    if (!token || !guildId) {
-      res.status(400).json({ error: "Missing required parameters" });
-      return;
-    }
+    // Generate state parameter to prevent CSRF
+    const state = crypto.randomBytes(16).toString("hex");
 
-    await loadDataFromDiscord(
-      token,
-      guildId,
-      repository.org_name,
-      repository.repo_name
-    );
+    // Store state and orgId in session or temporary storage
+    await storeDiscordAuthState(state, {
+      userId: req.user.id,
+      orgId: orgId,
+    });
 
-    res.status(200).json({ message: "Discord ingestion completed" });
+    // Construct Discord OAuth URL with bot scope and permissions
+    const discordAuthUrl =
+      `https://discord.com/api/oauth2/authorize?` +
+      `client_id=${process.env.DISCORD_CLIENT_ID}` +
+      `&redirect_uri=${encodeURIComponent(process.env.DISCORD_REDIRECT_URI!)}` +
+      `&response_type=code` +
+      `&scope=bot%20identify%20guilds` +
+      `&state=${state}` +
+      `&permissions=274878221376`; // Required bot permissions
+
+    res.json({ authUrl: discordAuthUrl });
   } catch (error) {
     next(error);
   }
 };
 
-export const startDiscordBot = async (
+export const handleDiscordCallback = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { code, state, guild_id } = req.query;
+
+    // Verify state to prevent CSRF
+    const authState = await getDiscordAuthState(state as string);
+    if (!authState) {
+      res.status(400).json({ error: "Invalid state parameter" });
+      return;
+    }
+
+    // Exchange code for access token
+    const tokenResponse = await fetch("https://discord.com/api/oauth2/token", {
+      method: "POST",
+      body: new URLSearchParams({
+        client_id: process.env.DISCORD_CLIENT_ID!,
+        client_secret: process.env.DISCORD_CLIENT_SECRET!,
+        code: code as string,
+        grant_type: "authorization_code",
+        redirect_uri: process.env.DISCORD_REDIRECT_URI!,
+      }),
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+    });
+
+    const tokens = await tokenResponse.json();
+
+    if ((tokens as any).error) {
+      console.error("Discord token error:", tokens);
+      res
+        .status(400)
+        .json({ error: "Failed to get Discord token", details: tokens });
+      return;
+    }
+
+    // Get user's guilds (servers)
+    const guildsResponse = await fetch(
+      "https://discord.com/api/users/@me/guilds",
+      {
+        headers: {
+          Authorization: `Bearer ${(tokens as any).access_token}`,
+        },
+      }
+    );
+
+    if (!guildsResponse.ok) {
+      console.error("Discord guilds error:", await guildsResponse.text());
+      res.status(400).json({ error: "Failed to get Discord guilds" });
+      return;
+    }
+
+    const guilds = await guildsResponse.json();
+
+    // Check if guilds is an array
+    if (!Array.isArray(guilds)) {
+      console.error("Invalid guilds response:", guilds);
+      res.status(400).json({ error: "Invalid response from Discord" });
+      return;
+    }
+
+    // Find the specific guild that was selected
+    const selectedGuild = guilds.find((g) => g.id === guild_id);
+    if (!selectedGuild) {
+      res.status(400).json({ error: "Selected guild not found" });
+      return;
+    }
+
+    // Check if user has MANAGE_GUILD permission for the selected guild
+    if (!(selectedGuild.permissions & 0x20)) {
+      res
+        .status(403)
+        .json({ error: "You don't have permission to manage this server" });
+      return;
+    }
+
+    console.log("Processing selected guild:", selectedGuild.name);
+
+    // Initialize the bot
+    if (discordBot) {
+      await discordBot.stop();
+    }
+
+    discordBot = new DiscordBot(authState.orgId, selectedGuild.name);
+    await discordBot.start(process.env.DISCORD_BOT_TOKEN!);
+
+    // Wait a moment for the bot to join the server
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // Process the selected guild
+    try {
+      await loadDataFromDiscord(selectedGuild.id, authState.orgId);
+
+      const source = await createSourceInDb(
+        authState.orgId,
+        selectedGuild.name,
+        "discord",
+        {
+          discord: {
+            guild_id: selectedGuild.id,
+          },
+        },
+        new Date()
+      );
+
+      res.status(200).json({
+        message: "Discord auth successful",
+        source: {
+          name: source.name,
+          id: source.id,
+        },
+      });
+    } catch (error) {
+      console.error(`Error processing guild ${selectedGuild.name}:`, error);
+      res.status(500).json({
+        error: "Failed to process Discord server",
+        details: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  } catch (error) {
+    console.error("Discord callback error:", error);
+    res.status(500).json({ error: "Internal server error", details: error });
+  }
+};
+
+export const getConversationsFromOrg = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { token, repoId } = req.body;
-
-    const repository = await getRepositoryById(repoId);
-    if (!repository) {
-      res.status(404).json({ error: "Repository not found" });
-      return;
-    }
-
-    if (discordBot) {
-      await discordBot.stop();
-    }
-
-    discordBot = new DiscordBot(repository.org_name, repository.repo_name);
-    await discordBot.start(token);
-
-    res.status(200).json({ message: "Discord bot started successfully" });
+    const { orgId } = req.params;
+    console.log("orgId", orgId);
+    const conversations = await getConversationsFromOrganization(orgId);
+    res.status(200).json(conversations);
   } catch (error) {
     next(error);
+  }
+};
+
+export const getDashboardAnalytics = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { orgId } = req.params;
+    const analytics = await getDashboardAnalyticsFromDb(orgId);
+    res.status(200).json({ analytics });
+  } catch (error) {
+    console.error("Error getting dashboard analytics", error);
+    res.status(500).json({ error: "Failed to get dashboard analytics" });
   }
 };

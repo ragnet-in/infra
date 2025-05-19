@@ -3,10 +3,10 @@ import { openai } from "@ai-sdk/openai";
 import { createVectorQueryTool } from "@mastra/rag";
 import { getIndexName } from "./vectorDb";
 
-export const initialiseDevRelAgent = (orgName: string, repoName: string) => {
+export const initialiseDevRelAgent = (orgId: string, orgName: string) => {
   const vectorQueryTool = createVectorQueryTool({
     vectorStoreName: "pgVector",
-    indexName: getIndexName(orgName, repoName),
+    indexName: getIndexName(orgId),
     model: openai.embedding("text-embedding-3-small"),
   });
 

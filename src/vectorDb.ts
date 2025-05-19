@@ -38,6 +38,6 @@ export const replaceSpecialCharactersWithUnderscores = (text: string) => {
   return text.replace(/[^a-zA-Z0-9\s]/g, "_");
 };
 
-export const getIndexName = (orgName: string, repoName: string) => {
-  return replaceSpecialCharactersWithUnderscores(orgName + repoName);
+export const getIndexName = (orgId: string) => {
+  return `org_${replaceSpecialCharactersWithUnderscores(orgId)}`;
 };
