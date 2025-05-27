@@ -7,8 +7,6 @@ import {
   createOrganization,
   createSource,
   getSources,
-  initiateDiscordAuth,
-  handleDiscordCallback,
   getConversationsFromOrg,
   getDashboardAnalytics,
   addGuardRails,
@@ -16,18 +14,21 @@ import {
   addOrgPrompt,
   getOrgPrompt,
   getVersion,
+  generateAPIKey, 
+  deleteAPIKey,
+  addAdminToOrg,
 } from "./controller";
 import { authMiddleware } from "./middleware/auth";
 import { initDb } from "./db/init";
-import { initDiscord } from "./discord/init";
 import cors from "cors";
+import { countReset } from "console";
 config();
 
 const app = express();
 app.use(express.json());
 app.use(
   cors({
-    origin: "http://localhost:3001",
+    origin: "http://localhost:3002",
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -38,7 +39,6 @@ const PORT = process.env.PORT || 3000;
 
 // Initialize our services
 initDb();
-initDiscord();
 
 // Public routes
 app.get("/version", getVersion)
@@ -49,14 +49,16 @@ app.post("/api/organizations", authMiddleware, createOrganization);
 app.get("/api/organizations", authMiddleware, getOrganizations);
 app.post("/api/sources", authMiddleware, createSource);
 app.get("/api/sources/:orgId", authMiddleware, getSources);
-app.post("/api/sources/discord/auth", authMiddleware, initiateDiscordAuth);
-app.get("/api/auth/discord/callback", handleDiscordCallback);
 app.post("/api/guardrails", authMiddleware, addGuardRails);
 app.get("/api/guardrails/:orgId", authMiddleware, getGuardRails);
 app.post("/api/orgPrompt", authMiddleware, addOrgPrompt);
 app.get("/api/orgPrompt/:orgId", authMiddleware, getOrgPrompt);
 app.get("/api/conversations/:orgId", authMiddleware, getConversationsFromOrg);
 app.get("/api/dashboard/:orgId", authMiddleware, getDashboardAnalytics);
+
+app.get("/api/generateApiKey/:orgId", authMiddleware, generateAPIKey);
+app.delete("/api/deleteApiKey/:orgId", authMiddleware, deleteAPIKey);
+app.post("/api/addAdminToOrg/:orgId", authMiddleware, addAdminToOrg);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

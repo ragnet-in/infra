@@ -10,11 +10,6 @@ Most open-source dev-facing startups struggle with scaling support: time zone de
 
 Ragnet solves this by ingesting your docs, codebase, GitHub issues, architecture diagrams, and past chat history to build an AI agent that answers dev queries instantly, with full source citations. It learns continuously from new interactions and works 24/7! like a fully trained DevRel who knows everything your team ever shipped, but without the human overhead. It’s baked right inside where your community is there’s 0 friction for them to use it.
 
-## 🏗️ System Architecture
-
-<p align="center">
-  <img src="system.png" alt="System Architecture" />
-</p>
 
 ## Key Features
 
@@ -72,26 +67,6 @@ docker compose up -d
 
 Now access the application at `http://localhost:3000`
 
-## 🔗 Lens Protocol Integration
-
-RagNet integrates with Lens Protocol for:
-
-1. **Social Identity**
-
-   - Lens accounts & a common feed to subscribe to
-   - Bonsai Smart Media Template for auto-debugging based on your error screenshots
-
-2. **Content Verification**
-
-   - On-chain verification of responses
-   - Immutable query history
-   - Transparent reputation system
-
-3. **Engagement Rewards**
-   - SOTA Jaccard-based reputation scoring
-   - Early adopter bonuses
-   - Engagement streaks
-
 ## 🛣️ Roadmap
 
 ### Phase 1: Core Features (Current)
@@ -103,10 +78,8 @@ RagNet integrates with Lens Protocol for:
 
 ### Phase 2: Lens Integration
 
-- [x] Social graph integration
 - [x] Reputation system
 - [x] Content verification
-- [x] Bonsai App Integration with our Smart Media Template
 - [ ] Token-gated features
 
 ### Phase 3: Enhanced Features

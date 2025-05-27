@@ -7,6 +7,7 @@ export async function createSourceInDb(
   orgId: string,
   name: string,
   url: string,
+  type: string,
   lastSyncAt?: Date
 ): Promise<Source> {
   // First check if organization exists
@@ -21,8 +22,8 @@ export async function createSourceInDb(
 
   const id = uuidv4();
   const result = await pool.query(
-    "INSERT INTO sources (id, org_id, name, url, last_sync_at) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-    [id, orgId, name, url, lastSyncAt]
+    "INSERT INTO sources (id, org_id, name, url, type, last_sync_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
+    [id, orgId, name, url, type, lastSyncAt]
   );
   return result.rows[0];
 }
@@ -31,7 +32,6 @@ export async function getOrganizationSources(orgId: string): Promise<Source[]> {
   const result = await pool.query("SELECT * FROM sources WHERE org_id = $1", [
     orgId,
   ]);
-  console.log("result", result.rows);
   return result.rows;
 }
 

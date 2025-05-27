@@ -23,6 +23,7 @@ export interface Source {
   id: string;
   org_id: string;
   name: string;
+  type: string;
   url: string;
   last_sync_at?: Date;
   created_at: Date;

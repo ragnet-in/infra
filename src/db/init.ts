@@ -86,6 +86,14 @@ export async function initDb() {
       );
     `);
     
+    // Create api keys tabls
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS org_api_keys (
+        org_id UUID PRIMARY KEY REFERENCES organizations(id) ON DELETE CASCADE,
+        api_key VARCHAR(255) NOT NULL
+      );
+    `);
+    
     // Create indexes for better query performance
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_user_organizations_user_id ON user_organizations(user_id);

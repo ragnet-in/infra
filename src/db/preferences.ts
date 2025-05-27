@@ -39,7 +39,6 @@ export async function addPromptForOrg(orgId: string, prompt: string) {
   );
 }
 
-
 // Retrieves the org-level custom prompt.
 export async function getPromptForOrg(orgId: string): Promise<string | null> {
   const result = await pool.query(

@@ -1,5 +1,6 @@
 import { pool } from "./init";
 import { v4 as uuidv4 } from "uuid";
+import { getRagInsights } from "../rag"
 
 export interface Message {
   id: string;
@@ -84,17 +85,13 @@ export async function getConversationsFromOrganization(
     "SELECT * FROM conversations WHERE org_id = $1",
     [organizationId]
   );
-  console.log("result conversations", result.rows);
   // for each conversation, get the messages
   const conversationsWithMessages = await Promise.all(
     result.rows.map(async (conversation) => {
-      console.log("conversation", conversation);
       const messages = await getConversationHistory(conversation.id);
-      console.log("messages", messages);
       return { ...conversation, messages };
     })
   );
-  console.log("conversationsWithMessages", conversationsWithMessages);
   return conversationsWithMessages;
 }
 
@@ -103,7 +100,7 @@ export async function getDashboardAnalyticsFromDb(orgId: string) {
   let totalUsers = 0; // number of unique users
   let averageConversationLength = 0; // average number of messages per conversation
   const totalQueriesResult = await pool.query(
-    "SELECT COUNT(*) FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE org_id = $1)",
+    "SELECT COUNT(*) FROM messages WHERE role = 'assistant' AND conversation_id IN (SELECT id FROM conversations WHERE org_id = $1)",
     [orgId]
   );
   totalQueries = totalQueriesResult.rows[0].count;
@@ -132,4 +129,66 @@ export async function getDashboardAnalyticsFromDb(orgId: string) {
   averageConversationLength =
     messageCounts.reduce((a, b) => a + b, 0) / messageCounts.length || 0;
   return { totalQueries, totalUsers, averageConversationLength };
+}
+
+export async function getOrgAnalytics(orgId: string) {
+  try {
+    // Query total assistant messages
+    const assistantCountRes = await pool.query(
+      `SELECT COUNT(*) FROM messages 
+       WHERE role = 'assistant' 
+       AND conversation_id IN (
+         SELECT id FROM conversations WHERE org_id = $1
+       )`,
+      [orgId]
+    );
+    const totalAssistantMessages = parseInt(assistantCountRes.rows[0].count);
+
+    // Query total conversations
+    const convoCountRes = await pool.query(
+      `SELECT COUNT(*) FROM conversations WHERE org_id = $1`,
+      [orgId]
+    );
+    const totalConversations = parseInt(convoCountRes.rows[0].count);
+
+    // Fetch all conversation queries and responses with optional sources
+    const convoDataRes = await pool.query(
+      `SELECT c.id as conversation_id, m.role, m.content
+       FROM messages m
+       JOIN conversations c ON c.id = m.conversation_id
+       WHERE c.org_id = $1
+       ORDER BY c.created_at, m.created_at`,
+      [orgId]
+    );
+    const convoMessages = convoDataRes.rows;
+
+    // Structure messages as conversations
+    const conversationMap = new Map();
+    convoMessages.forEach(({ conversation_id, role, content }) => {
+      if (!conversationMap.has(conversation_id)) {
+        conversationMap.set(conversation_id, []);
+      }
+      conversationMap.get(conversation_id).push({ role, content });
+    });
+
+    const formattedConversationText = [...conversationMap.entries()].map(
+    ([id, messages]: [string, { role: string; content: string }[]]) => {
+      return `Conversation ID: ${id}\n` +
+        messages.map((m: { role: string; content: string }) => `${m.role.toUpperCase()}: ${m.content}`).join("\n");
+    }
+    ).join("\n\n---\n\n");
+
+    const insights = await getRagInsights(orgId, formattedConversationText);
+    console.log("Insights so far ", totalAssistantMessages, totalConversations);
+    console.log("Generated insights: ",  insights);
+    return {
+      totalAssistantMessages,
+      totalConversations,
+      averageConversationLength: 0,
+      insights: insights || "No insights generated"
+    };
+  } catch (error) {
+    console.error("Failed to generate org analytics:", error);
+    throw error;
+  }
 }

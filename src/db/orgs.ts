@@ -1,6 +1,7 @@
 import { pool } from "./init";
 import { Organization} from "./types";
 import { v4 as uuidv4 } from "uuid";
+import bcrypt from "bcrypt";
 
 // Organization functions
 export async function createOrgInDb(
@@ -63,4 +64,47 @@ export async function isOrgOwner(
     [orgId, userId]
   );
   return result.rows[0].count === "1";
+}
+
+export async function generateAPIKeyForOrg(
+  orgId: string
+): Promise<string> {
+  const apiKey = "ragnet_"+uuidv4();
+  const hashedAPIKey = await bcrypt.hash(apiKey, 10);
+  
+  await pool.query(
+    "INSERT INTO api_keys (org_id, key) VALUES ($1, $2)",
+    [orgId, hashedAPIKey]
+  );
+  return apiKey;
+}
+
+export async function deleteAPIKeyForOrg(
+  apiKey: string
+): Promise<boolean> {
+  try {
+    const hashedAPIKey = await bcrypt.hash(apiKey, 10);
+    await pool.query(
+      "DELETE FROM api_keys WHERE key = $1",
+      [hashedAPIKey]
+    );
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+export async function addUserToOrg(
+  userId: string,
+  orgId: string, 
+): Promise<boolean> {
+  try {
+    await pool.query(
+      "INSERT INTO user_organizations (user_id, org_id) VALUES ($1, $2)",
+      [userId, orgId]
+    );
+    return true;
+  } catch (error) {
+    return false;
+  }
 }

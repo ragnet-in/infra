@@ -1,6 +1,19 @@
 interface QueryResponse {
   answer: string;
 }
+export interface DashboardAnalytics {
+  topics: {
+    topic: string;
+    count: number;
+    subtopics: string[];
+  }[];
+  sources: {
+    source: string;
+    frequency: number;
+  }[];
+  actions: string[];
+}
+
 
 export const initRag = async (orgId: string): Promise<boolean> => {
     console.log("init rag for; ", orgId);
@@ -35,4 +48,15 @@ export const getRagResponse = async (orgId:string, query: string, completePrompt
     return [data.answer, true];
 }
 
-
+export const getRagInsights = async (orgId:string, conversationHistory: string): Promise<[DashboardAnalytics, boolean]> =>{
+    const response = await fetch(`${process.env.RAG_API_URL}/insights?orgId=${orgId}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ "history":conversationHistory })
+    });
+    const resp = await response.json();
+    const data = (resp) as DashboardAnalytics;
+    return [data, true];
+}
