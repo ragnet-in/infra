@@ -25,9 +25,23 @@ import {
   getConversationsFromOrganization,
   getDashboardAnalyticsFromDb,
 } from "./db/conversations";
+import {
+  addGuardRailsForOrg,
+  getGuardRailsForOrg,
+  addPromptForOrg,
+  getPromptForOrg,
+} from "./db/preferences"
+import { initRag, buildRagGraph, getRagResponse } from "./rag";
+
 config();
 
 let discordBot: DiscordBot | null = null;
+
+export const getVersion = async (req: Request, res: Response) => {
+  console.log("get version")
+  res.json("v1");
+  return;
+}
 
 export const authenticateUser = async (req: Request, res: Response) => {
   try {
@@ -71,6 +85,11 @@ export const createOrganization = async (
     const userId = req.user!.id;
 
     const organization = await createOrgInDb(userId, name, description);
+    const success = await initRag(organization.id)
+    if (!success) {
+      res.status(500).json({ error: "Failed to get response from RAG" });
+      return;
+    }
     res.status(201).json(organization);
   } catch (error) {
     next(error);
@@ -102,14 +121,12 @@ export const createSource = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { name, type, config, orgId } = req.body;
+    const { name, url, orgId } = req.body;
     if (!req.user) {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
     const userId = req.user.id;
-    let source: Source;
-    const typedConfig = config as SourceConfig;
 
     // Check if user is owner of org
     const isOwner = await isOrgOwner(orgId, userId);
@@ -120,34 +137,21 @@ export const createSource = async (
 
     let currentSyncAt: Date = new Date();
 
-    // See config for type
-    if (typedConfig.github) {
-      // Parse the url
-      const url = new URL(typedConfig.github.url);
-      const orgName = url.pathname.split("/")[1];
-      const repoName = url.pathname.split("/")[2];
-
-      await loadDataFromGithub(orgName, repoName, orgId);
-      source = await createSourceInDb(orgId, name, type, config, currentSyncAt);
-      res.status(200).json({ message: "GitHub ingestion completed" });
-    } else if (typedConfig.discord) {
-      await loadDataFromDiscord(typedConfig.discord.guild_id, orgId);
-      source = await createSourceInDb(orgId, name, type, config, currentSyncAt);
-
-      if (discordBot) {
-        await discordBot.stop();
-      }
-
-      discordBot = new DiscordBot(orgId, name);
-      await discordBot.start(process.env.DISCORD_BOT_TOKEN!);
-
-      res.status(200).json({ message: "Discord ingestion completed" });
-    } else {
-      res.status(400).json({ error: "Invalid source type" });
+    // const sources = await getOrganizationSources(orgId) as Source[];
+    // for (const source of sources) {
+    //   if (source.url === url) {
+    //     res.status(400).json({ error: "Source with this URL already exists" });
+    //     return;
+    //   }
+    // }
+    const success = await buildRagGraph(orgId, url)
+    if (!success) {
+      res.status(500).json({ error: "Failed to get response from RAG" });
       return;
     }
+    createSourceInDb(orgId, name, url, currentSyncAt)
 
-    // res.status(201).json(source);
+    res.status(201).json({"name": name,"url":url});
   } catch (error) {
     next(error);
   }
@@ -194,28 +198,58 @@ export const queryEndpoint = async (
 
     // Get conversation history
     const history = await getConversationHistory(conversation.id);
+    const contextualQuery = `Previous conversation: ${history.map((msg) => `${msg.role}: ${msg.content}`).join("\n")}`;
+    const orgPrompt = await getPromptForOrg(orgId)
+    const guardrails = await getGuardRailsForOrg(orgId)
 
-    const devRelAgent = initialiseDevRelAgent(orgId, organization.name);
-    const mastra = initialiseMastra(devRelAgent);
-    const agent = mastra.getAgent("devRelAgent");
+    const completePrompt = 
+`You are a helpful Developer Relations engineer from the ${organization.name} team that helps users with the documentation & bugs they encounter.
 
-    // Include conversation history in the prompt
-    const contextualQuery = `
-Previous conversation:
-${history.map((msg) => `${msg.role}: ${msg.content}`).join("\n")}
+When responding to queries, follow this thought process:
+1. First, understand the type of query:
+   - Is it a bug report?
+   - Is it a documentation gap?
+   - Is it a feature request?
+   - Is it a general question about functionality?
 
-Current question:
-${query}
-`;
+2. For each query:
+   - Search the documentation thoroughly using the vector query tool
+   - If it's a bug, look for similar issues or known limitations
+   - If it's a documentation gap, identify the closest related content
+   - If it's a feature request, check if it exists or if there are workarounds
 
-    const response = await agent.generate(contextualQuery);
+3. Structure your response:
+   - Acknowledge the specific type of query
+   - Share relevant documentation snippets
+   - If it's a bug, suggest potential solutions or workarounds
+   - If documentation is missing, explain what exists and what's missing
+   - If a feature doesn't exist, suggest alternatives or workarounds
+
+4. Always:
+   - Be empathetic to the developer's situation
+   - Provide clear, actionable next steps
+   - Acknowledge limitations in your knowledge
+   - Suggest where to get more help if needed
+   
+Your DevRel Persona : ${orgPrompt}
+
+Keep the following guardrails in mind : ${guardrails.join(", ")}
+
+Previous Conversation: ${contextualQuery}
+
+Only respond based on the the pointers shared, vector search results and in context to the ${organization.name} documentation. If you can't find an answer, acknowledge it clearly. Keep responses short, helpful, and source-backed.`
+
+    const [answer, success] = await getRagResponse(orgId, query, completePrompt)
+    if (!success) {
+      res.status(500).json({ error: "Failed to get response from RAG" });
+      return;
+    }
 
     // Store assistant's response
-    await addMessageToConversation(conversation.id, response.text, "assistant");
-
+    await addMessageToConversation(conversation.id, answer, "assistant");
     res.json({
       success: true,
-      response: response.text,
+      response: answer,
       conversationId: conversation.id,
     });
   } catch (error) {
@@ -364,11 +398,11 @@ export const handleDiscordCallback = async (
         authState.orgId,
         selectedGuild.name,
         "discord",
-        {
-          discord: {
-            guild_id: selectedGuild.id,
-          },
-        },
+        // {
+        //   discord: {
+        //     guild_id: selectedGuild.id,
+        //   },
+        // },
         new Date()
       );
 
@@ -419,5 +453,65 @@ export const getDashboardAnalytics = async (
   } catch (error) {
     console.error("Error getting dashboard analytics", error);
     res.status(500).json({ error: "Failed to get dashboard analytics" });
+  }
+};
+
+export const addGuardRails = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { orgId, guardrails } = req.body;
+    const result = await addGuardRailsForOrg(orgId, guardrails);
+    res.status(200).json("Added words to GuardRail");
+  } catch (error) {
+    console.error("Error adding them to GuardRails", error);
+    res.status(500).json({ error: "Failed to add guardrail" });
+  }
+};
+
+export const getGuardRails = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const {orgId} = req.params
+    const result = await getGuardRailsForOrg(orgId);
+    res.status(200).json(result);
+  } catch (error) {
+    console.error("Error fetching GuardRails", error);
+    res.status(500).json({ error: "Failed to fetch guardrail" });
+  }
+};
+
+export const addOrgPrompt = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { orgId, orgPrompt } = req.body;
+    await addPromptForOrg(orgId, orgPrompt);
+    res.status(200).json("Added Org Prompt");
+  } catch (error) {
+    console.error("Error adding Org Prompt", error);
+    res.status(500).json({ error: "Failed to add OrgPrompt" });
+  }
+};
+
+export const getOrgPrompt = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const {orgId} = req.params
+    const result = await getPromptForOrg(orgId);
+    res.status(200).json(result);
+  } catch (error) {
+    console.error("Error fetching Org Prompt", error);
+    res.status(500).json({ error: "Failed to fetch OrgPrompt" });
   }
 };

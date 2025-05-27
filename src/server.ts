@@ -13,6 +13,11 @@ import {
   handleDiscordCallback,
   getConversationsFromOrg,
   getDashboardAnalytics,
+  addGuardRails,
+  getGuardRails,
+  addOrgPrompt,
+  getOrgPrompt,
+  getVersion,
 } from "./controller";
 import { authMiddleware } from "./middleware/auth";
 import { initDb } from "./db/init";
@@ -24,6 +29,7 @@ const app = express();
 app.use(express.json());
 app.use(
   cors({
+    // origin: ,
     origin: "http://localhost:3001",
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE"],
@@ -40,6 +46,7 @@ initialiseMastra();
 initDiscord();
 
 // Public routes
+app.get("/version", getVersion)
 app.post("/api/register", authenticateUser);
 app.post("/api/query", queryEndpoint);
 
@@ -52,6 +59,10 @@ app.post("/api/sources", authMiddleware, createSource);
 app.get("/api/sources/:orgId", authMiddleware, getSources);
 app.post("/api/sources/discord/auth", authMiddleware, initiateDiscordAuth);
 app.get("/api/auth/discord/callback", handleDiscordCallback);
+app.post("/api/guardrails", addGuardRails);
+app.get("/api/guardrails/:orgId", getGuardRails);
+app.post("/api/orgPrompt", addOrgPrompt);
+app.get("/api/orgPrompt/:orgId", getOrgPrompt);
 
 // Conversation routes
 app.get("/api/conversations/:orgId", authMiddleware, getConversationsFromOrg);

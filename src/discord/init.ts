@@ -4,11 +4,17 @@ import { pool } from "../db/init";
 export const initDiscord = async () => {
   try {
     // Get all Discord sources from the database
+    // const result = await pool.query(`
+    //   SELECT s.*, o.name as org_name 
+    //   FROM sources s 
+    //   JOIN organizations o ON s.org_id = o.id 
+    //   WHERE s.type = 'discord'
+    // `);
+    // type has been removed, need to check if still needed
     const result = await pool.query(`
       SELECT s.*, o.name as org_name 
       FROM sources s 
       JOIN organizations o ON s.org_id = o.id 
-      WHERE s.type = 'discord'
     `);
 
     // Initialize bot for each source

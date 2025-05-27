@@ -6,8 +6,7 @@ import { pool } from "./init";
 export async function createSourceInDb(
   orgId: string,
   name: string,
-  type: string,
-  config: SourceConfig,
+  url: string,
   lastSyncAt?: Date
 ): Promise<Source> {
   // First check if organization exists
@@ -22,8 +21,8 @@ export async function createSourceInDb(
 
   const id = uuidv4();
   const result = await pool.query(
-    "INSERT INTO sources (id, org_id, name, type, config, last_sync_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
-    [id, orgId, name, type, JSON.stringify(config), lastSyncAt]
+    "INSERT INTO sources (id, org_id, name, url, last_sync_at) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+    [id, orgId, name, url, lastSyncAt]
   );
   return result.rows[0];
 }

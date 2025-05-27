@@ -49,11 +49,9 @@ export async function initDb() {
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
         org_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
         name VARCHAR(255) NOT NULL,
-        type VARCHAR(50) NOT NULL,
-        config JSONB NOT NULL,
+        url VARCHAR(255) NOT NULL,
         last_sync_at TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT valid_source_type CHECK (type IN ('github', 'discord', 'webpage'))
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
 
@@ -90,12 +88,20 @@ export async function initDb() {
       );
     `);
 
+    // Create org_preferences table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS org_preferences (
+        org_id UUID PRIMARY KEY REFERENCES organizations(id) ON DELETE CASCADE,
+        guardrails TEXT[],
+        org_prompt TEXT
+      );
+    `);
+    
     // Create indexes for better query performance
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_user_organizations_user_id ON user_organizations(user_id);
       CREATE INDEX IF NOT EXISTS idx_user_organizations_org_id ON user_organizations(org_id);
       CREATE INDEX IF NOT EXISTS idx_sources_org_id ON sources(org_id);
-      CREATE INDEX IF NOT EXISTS idx_sources_type ON sources(type);
       CREATE INDEX IF NOT EXISTS idx_vector_indexes_source_id ON vector_indexes(source_id);
     `);
 

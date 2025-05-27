@@ -6,6 +6,7 @@ import {
   addMessageToConversation,
   getConversationHistory,
 } from "../db/conversations";
+import {getPromptForOrg} from "../db/preferences"
 
 export class DiscordBot {
   private client: Client;
@@ -62,8 +63,9 @@ export class DiscordBot {
       // Get conversation history
       const history = await getConversationHistory(conversation.id);
 
+      const orgPrompt = await getPromptForOrg(this.orgId)
       // Get response from the agent with context
-      const devRelAgent = initialiseDevRelAgent(this.orgId, this.orgName);
+      const devRelAgent = initialiseDevRelAgent(this.orgId, this.orgName, orgPrompt||"");
       const mastra = initialiseMastra(devRelAgent);
       const agent = mastra.getAgent("devRelAgent");
 

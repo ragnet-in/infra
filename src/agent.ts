@@ -3,7 +3,7 @@ import { openai } from "@ai-sdk/openai";
 import { createVectorQueryTool } from "@mastra/rag";
 import { getIndexName } from "./vectorDb";
 
-export const initialiseDevRelAgent = (orgId: string, orgName: string) => {
+export const initialiseDevRelAgent = (orgId: string, orgName: string, orgPrompt: string) => {
   const vectorQueryTool = createVectorQueryTool({
     vectorStoreName: "pgVector",
     indexName: getIndexName(orgId),
@@ -40,6 +40,8 @@ When responding to queries, follow this thought process:
    - Acknowledge limitations in your knowledge
    - Suggest where to get more help if needed
 
+Your DevRel Persona : ${orgPrompt}
+ 
 Only respond based on the vector search results and in context to the ${orgName} documentation. If you can't find an answer, acknowledge it clearly. Keep responses short, helpful, and source-backed.`,
     model: openai("gpt-4o-mini"),
     tools: {

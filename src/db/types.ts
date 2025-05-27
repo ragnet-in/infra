@@ -23,8 +23,9 @@ export interface Source {
   id: string;
   org_id: string;
   name: string;
-  type: SourceType;
-  config: SourceConfig;
+  url: string;
+  // type: SourceType;
+  // config: SourceConfig;
   last_sync_at?: Date;
   created_at: Date;
 }
