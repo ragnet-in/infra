@@ -1,5 +1,5 @@
 import { pool } from "./init";
-import { Organization, Source, SourceConfig } from "./types";
+import { Organization} from "./types";
 import { v4 as uuidv4 } from "uuid";
 
 // Organization functions

@@ -1,7 +1,5 @@
 import express from "express";
 import { config } from "dotenv";
-import { initPgVector } from "./vectorDb";
-import { initialiseMastra } from "./mastra";
 import {
   queryEndpoint,
   authenticateUser,
@@ -29,7 +27,6 @@ const app = express();
 app.use(express.json());
 app.use(
   cors({
-    // origin: ,
     origin: "http://localhost:3001",
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE"],
@@ -41,8 +38,6 @@ const PORT = process.env.PORT || 3000;
 
 // Initialize our services
 initDb();
-initPgVector();
-initialiseMastra();
 initDiscord();
 
 // Public routes
@@ -50,24 +45,17 @@ app.get("/version", getVersion)
 app.post("/api/register", authenticateUser);
 app.post("/api/query", queryEndpoint);
 
-// Protected routes
-
-// Org routes
 app.post("/api/organizations", authMiddleware, createOrganization);
 app.get("/api/organizations", authMiddleware, getOrganizations);
 app.post("/api/sources", authMiddleware, createSource);
 app.get("/api/sources/:orgId", authMiddleware, getSources);
 app.post("/api/sources/discord/auth", authMiddleware, initiateDiscordAuth);
 app.get("/api/auth/discord/callback", handleDiscordCallback);
-app.post("/api/guardrails", addGuardRails);
-app.get("/api/guardrails/:orgId", getGuardRails);
-app.post("/api/orgPrompt", addOrgPrompt);
-app.get("/api/orgPrompt/:orgId", getOrgPrompt);
-
-// Conversation routes
+app.post("/api/guardrails", authMiddleware, addGuardRails);
+app.get("/api/guardrails/:orgId", authMiddleware, getGuardRails);
+app.post("/api/orgPrompt", authMiddleware, addOrgPrompt);
+app.get("/api/orgPrompt/:orgId", authMiddleware, getOrgPrompt);
 app.get("/api/conversations/:orgId", authMiddleware, getConversationsFromOrg);
-
-// Dashboard routes
 app.get("/api/dashboard/:orgId", authMiddleware, getDashboardAnalytics);
 
 app.listen(PORT, () => {

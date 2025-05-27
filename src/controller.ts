@@ -1,12 +1,9 @@
 import { Request, Response, NextFunction } from "express";
-import { loadDataFromDiscord, loadDataFromGithub } from "./ingest";
-import { initialiseDevRelAgent } from "./agent";
 import jwt from "jsonwebtoken";
 import { AuthRequest } from "./types";
 import { createUser, findUserByEmail, isPasswordMatch } from "./db/users";
 import { config } from "dotenv";
-import { initialiseMastra } from "./mastra";
-import { DiscordBot } from "./discord/bot";
+import { DiscordBot, loadDataFromDiscord } from "./discord/bot";
 import {
   createOrgInDb,
   getOrganizationById,
@@ -14,7 +11,7 @@ import {
   isOrgOwner,
 } from "./db/orgs";
 import { createSourceInDb, getOrganizationSources } from "./db/sources";
-import { Source, SourceConfig } from "./db/types";
+import { Source } from "./db/types";
 import crypto from "crypto";
 import fetch from "node-fetch";
 import { storeDiscordAuthState, getDiscordAuthState } from "./utils/auth";
@@ -137,13 +134,13 @@ export const createSource = async (
 
     let currentSyncAt: Date = new Date();
 
-    // const sources = await getOrganizationSources(orgId) as Source[];
-    // for (const source of sources) {
-    //   if (source.url === url) {
-    //     res.status(400).json({ error: "Source with this URL already exists" });
-    //     return;
-    //   }
-    // }
+    const sources = await getOrganizationSources(orgId) as Source[];
+    for (const source of sources) {
+      if (source.url === url) {
+        res.status(400).json({ error: "Source with this URL already exists" });
+        return;
+      }
+    }
     const success = await buildRagGraph(orgId, url)
     if (!success) {
       res.status(500).json({ error: "Failed to get response from RAG" });
@@ -164,9 +161,7 @@ export const getSources = async (
 ): Promise<void> => {
   try {
     const { orgId } = req.params;
-    console.log("orgId", orgId);
     const sources = await getOrganizationSources(orgId);
-    console.log("sources", sources);
     res.status(200).json(sources);
   } catch (error) {
     console.log("error", error);

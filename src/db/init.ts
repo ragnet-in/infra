@@ -77,17 +77,6 @@ export async function initDb() {
       );    
     `);
 
-    // Create vector_indexes table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS vector_indexes (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        source_id UUID REFERENCES sources(id) ON DELETE CASCADE,
-        index_name VARCHAR(255) NOT NULL UNIQUE,
-        dimension INTEGER NOT NULL DEFAULT 1536,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-
     // Create org_preferences table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS org_preferences (
@@ -102,7 +91,6 @@ export async function initDb() {
       CREATE INDEX IF NOT EXISTS idx_user_organizations_user_id ON user_organizations(user_id);
       CREATE INDEX IF NOT EXISTS idx_user_organizations_org_id ON user_organizations(org_id);
       CREATE INDEX IF NOT EXISTS idx_sources_org_id ON sources(org_id);
-      CREATE INDEX IF NOT EXISTS idx_vector_indexes_source_id ON vector_indexes(source_id);
     `);
 
     console.log("Database initialized successfully");

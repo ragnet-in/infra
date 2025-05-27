@@ -1,4 +1,4 @@
-import { SourceConfig, Source } from "./types";
+import { Source } from "./types";
 import { v4 as uuidv4 } from "uuid";
 import { pool } from "./init";
 
@@ -28,7 +28,6 @@ export async function createSourceInDb(
 }
 
 export async function getOrganizationSources(orgId: string): Promise<Source[]> {
-  console.log("orgId inside getOrganizationSources", orgId);
   const result = await pool.query("SELECT * FROM sources WHERE org_id = $1", [
     orgId,
   ]);

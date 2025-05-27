@@ -24,39 +24,9 @@ export interface Source {
   org_id: string;
   name: string;
   url: string;
-  // type: SourceType;
-  // config: SourceConfig;
   last_sync_at?: Date;
   created_at: Date;
 }
-
-export type SourceType = "github" | "discord" | "webpage";
-
-export interface SourceConfig {
-  // GitHub config
-  github?: {
-    url: string;
-  };
-
-  // Discord config
-  discord?: {
-    guild_id: string;
-  };
-
-  // Webpage config
-  webpage?: {
-    url: string;
-  };
-}
-
-export interface VectorIndex {
-  id: string;
-  source_id: string;
-  index_name: string;
-  dimension: number;
-  created_at: Date;
-}
-
 export interface AuthRequest extends Request {
   user?: User;
 }

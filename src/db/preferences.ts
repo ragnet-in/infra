@@ -1,8 +1,6 @@
 import { pool } from "./init";
 
-/**
- * Adds blocked words for an org by merging with the existing array.
- */
+// guardrails for an org by merging with the existing array.
 export async function addGuardRailsForOrg(orgId: string, words: string[]) {
   if (!Array.isArray(words) || words.length === 0) return;
 
@@ -19,9 +17,7 @@ export async function addGuardRailsForOrg(orgId: string, words: string[]) {
   );
 }
 
-/**
- * Retrieves the blocked words array for the given org.
- */
+// Retrieves the guardrail array for the given org.
 export async function getGuardRailsForOrg(orgId: string): Promise<string[]> {
   const result = await pool.query(
     "SELECT guardrails FROM org_preferences WHERE org_id = $1",
@@ -30,9 +26,7 @@ export async function getGuardRailsForOrg(orgId: string): Promise<string[]> {
   return result.rows[0]?.guardrails || [];
 }
 
-/**
- * Sets the org-level custom prompt.
- */
+// Sets the org-level custom prompt.
 export async function addPromptForOrg(orgId: string, prompt: string) {
   await pool.query(
     `
@@ -46,9 +40,7 @@ export async function addPromptForOrg(orgId: string, prompt: string) {
 }
 
 
-/**
- * Retrieves the org-level custom prompt.
- */
+// Retrieves the org-level custom prompt.
 export async function getPromptForOrg(orgId: string): Promise<string | null> {
   const result = await pool.query(
     "SELECT org_prompt FROM org_preferences WHERE org_id = $1",

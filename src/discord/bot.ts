@@ -1,6 +1,4 @@
 import { Client, GatewayIntentBits, Message, ThreadChannel } from "discord.js";
-import { initialiseDevRelAgent } from "../agent";
-import { initialiseMastra } from "../mastra";
 import {
   createConversation,
   addMessageToConversation,
@@ -64,10 +62,10 @@ export class DiscordBot {
       const history = await getConversationHistory(conversation.id);
 
       const orgPrompt = await getPromptForOrg(this.orgId)
-      // Get response from the agent with context
-      const devRelAgent = initialiseDevRelAgent(this.orgId, this.orgName, orgPrompt||"");
-      const mastra = initialiseMastra(devRelAgent);
-      const agent = mastra.getAgent("devRelAgent");
+      // // Get response from the agent with context
+      // const devRelAgent = initialiseDevRelAgent(this.orgId, this.orgName, orgPrompt||"");
+      // const mastra = initialiseMastra(devRelAgent);
+      // const agent = mastra.getAgent("devRelAgent");
 
       // Include conversation history in the prompt
       const contextualQuery = `
@@ -78,18 +76,19 @@ Current question:
 ${question}
 `;
 
-      const response = await agent.generate(contextualQuery);
+      // const response = await agent.generate(contextualQuery);
 
       // Store assistant's response
       await addMessageToConversation(
         conversation.id,
-        response.text,
+        // response.text,
+        "discord output",
         "assistant"
       );
 
       // Send the response
       await thread.send({
-        content: response.text,
+        content: "discord output",
       });
     } catch (error) {
       console.error("Error handling bot mention:", error);
@@ -134,3 +133,135 @@ ${question}
     await this.client.destroy();
   }
 }
+
+export async function loadDataFromDiscord(guildId: string, orgId: string) {
+}
+// import {
+//   Client,
+//   GatewayIntentBits,
+//   TextChannel,
+//   Collection,
+//   Message,
+// } from "discord.js";
+// import { config } from "dotenv";
+// import { generateChunks, saveChunksToCsv, fetchFromGitHub } from "./fetcher";
+// import { generateEmbeddings } from "./ai";
+// import { fetchFromDiscord } from "./discordFetcher";
+// config();
+
+
+// export async function fetchFromDiscord(guildId: string) {
+//   console.log(`Fetching from Discord: Guild ${guildId}`);
+
+//   const client = new Client({
+//     intents: [
+//       GatewayIntentBits.Guilds,
+//       GatewayIntentBits.GuildMessages,
+//       GatewayIntentBits.MessageContent,
+//     ],
+//   });
+
+//   const pages = new Map<string, string>();
+
+//   await new Promise<void>((resolve) => {
+//     client.once("ready", async () => {
+//       try {
+//         const guild = await client.guilds.fetch(guildId);
+//         const channels = await guild.channels.fetch();
+
+//         for (const [_, channel] of channels) {
+//           if (channel?.isTextBased() && channel instanceof TextChannel) {
+//             const messages = await fetchChannelMessages(channel);
+
+//             // Group messages by day
+//             const messagesByDay = new Map<string, string[]>();
+
+//             messages.forEach((msg) => {
+//               const date = msg.createdAt.toISOString().split("T")[0];
+//               if (!messagesByDay.has(date)) {
+//                 messagesByDay.set(date, []);
+//               }
+//               messagesByDay
+//                 .get(date)
+//                 ?.push(
+//                   `[${msg.createdAt.toISOString()}] ${msg.author.username}: ${
+//                     msg.content
+//                   }`
+//                 );
+//             });
+
+//             // Create pages for each day
+//             messagesByDay.forEach((messages, date) => {
+//               const key = `discord/${channel.name}/${date}`;
+//               pages.set(key, messages.join("\n"));
+//             });
+//           }
+//         }
+//       } catch (error) {
+//         console.error("Error fetching Discord messages:", error);
+//       } finally {
+//         await client.destroy();
+//         resolve();
+//       }
+//     });
+
+//     client.login(process.env.DISCORD_BOT_TOKEN);
+//   });
+
+//   console.log(`Found ${pages.size} conversation chunks`);
+//   return pages;
+// }
+
+// async function fetchChannelMessages(
+//   channel: TextChannel
+// ): Promise<Collection<string, Message>> {
+//   let allMessages = new Collection<string, Message>();
+//   let lastId: string | undefined;
+
+//   while (true) {
+//     const options: any = { limit: 100 };
+//     if (lastId) options.before = lastId;
+
+//     const messages = await channel.messages.fetch(options);
+//     if ((messages as any).size === 0) break;
+
+//     allMessages = allMessages.concat(messages as any);
+//     lastId = (messages as any).last()?.id;
+
+//     // Add a small delay to avoid rate limits
+//     await new Promise((resolve) => setTimeout(resolve, 1000));
+//   }
+
+//   return allMessages;
+// }
+
+// export async function loadDataFromDiscord(guildId: string, orgId: string) {
+//   // Fetch all Discord messages
+//   const pages = await fetchFromDiscord(guildId);
+
+//   // Process each page
+//   const allChunks = await generateChunks(pages);
+
+//   // Create CSV content
+//   saveChunksToCsv(allChunks, getIndexName(orgId));
+
+//   // Generate embeddings
+//   const embeddings = await generateEmbeddings(allChunks);
+
+//   const vectorStore = createVectorStore(mastra);
+
+//   // Create an index for our docs chunks
+//   await createIndex(vectorStore, getIndexName(orgId));
+
+//   // Store embeddings
+//   await upsert(
+//     vectorStore,
+//     getIndexName(orgId),
+//     embeddings,
+//     allChunks.map((chunk) => ({
+//       text: chunk.text,
+//       source: chunk.source,
+//     }))
+//   );
+// }
+
