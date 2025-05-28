@@ -108,3 +108,15 @@ export async function addUserToOrg(
     return false;
   }
 }
+
+export async function checkAPIKey(
+  apiKey: string,
+  orgId: string
+):Promise<boolean> {
+  const hashedAPIKey = await bcrypt.hash(apiKey, 10);
+  const result = await pool.query(
+    "SELECT COUNT(*) FROM api_keys WHERE org_id = $1 AND api_key = $2",
+    [orgId, hashedAPIKey]
+  );
+  return result.rows[0].count === "1";
+}

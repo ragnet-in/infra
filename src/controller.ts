@@ -10,7 +10,8 @@ import {
   getOrganizationById,
   getUserOrganizations,
   isOrgOwner,
-  addUserToOrg
+  addUserToOrg,
+  checkAPIKey
 } from "./db/orgs";
 import { createSourceInDb, getOrganizationSources } from "./db/sources";
 import { Source } from "./db/types";
@@ -176,9 +177,21 @@ export const queryEndpoint = async (
   res: Response
 ): Promise<void> => {
   try {
+    const authHeader = req.headers["x-api-key"];    
     const { query, orgId, conversationId } = req.body;
     const userId = (req as AuthRequest).user?.id;
 
+    if(!authHeader){
+      res.status(404).json({ error: "API Key not found" });
+      return;
+    }
+    
+    const suc = await checkAPIKey(authHeader as string, orgId);
+    if (!suc){
+      res.status(404).json({ error: "Invalid API Key" });
+      return;
+    }
+    
     const organization = await getOrganizationById(orgId);
     if (!organization) {
       res.status(404).json({ error: "Organization not found" });

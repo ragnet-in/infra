@@ -18,7 +18,10 @@ export interface DashboardAnalytics {
 export const initRag = async (orgId: string): Promise<boolean> => {
     console.log("init rag for; ", orgId);
     const response = await fetch(`${process.env.RAG_API_URL}/init?orgId=${orgId}`, {
-        method: "POST"
+        method: "POST",
+        headers: {
+          "X-infra-rag-key": `x-${process.env.INFRA_RAG_KEY}`
+        }
     });
     return response.ok;
 };
@@ -28,7 +31,8 @@ export const buildRagGraph = async (orgId: string, url: string): Promise<boolean
     const response = await fetch(`${process.env.RAG_API_URL}/buildGraph?orgId=${orgId}`, {
         method: "POST",
         headers: {
-        "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "X-infra-rag-key": `x-${process.env.INFRA_RAG_KEY}`
         },
         body: JSON.stringify({ url })
     });
@@ -40,7 +44,8 @@ export const getRagResponse = async (orgId:string, query: string, completePrompt
     const response = await fetch(`${process.env.RAG_API_URL}/query?orgId=${orgId}`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "X-infra-rag-key": `x-${process.env.INFRA_RAG_KEY}`
       },
       body: JSON.stringify({ query, "prompt":completePrompt })
     });
@@ -52,7 +57,8 @@ export const getRagInsights = async (orgId:string, conversationHistory: string):
     const response = await fetch(`${process.env.RAG_API_URL}/insights?orgId=${orgId}`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "X-infra-rag-key": `x-${process.env.INFRA_RAG_KEY}`
       },
       body: JSON.stringify({ "history":conversationHistory })
     });
