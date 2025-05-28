@@ -179,8 +179,6 @@ export async function getOrgAnalytics(orgId: string) {
     ).join("\n\n---\n\n");
 
     const insights = await getRagInsights(orgId, formattedConversationText);
-    console.log("Insights so far ", totalAssistantMessages, totalConversations);
-    console.log("Generated insights: ",  insights);
     return {
       totalAssistantMessages,
       totalConversations,

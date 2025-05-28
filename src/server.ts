@@ -19,9 +19,9 @@ import {
   addAdminToOrg,
 } from "./controller";
 import { authMiddleware } from "./middleware/auth";
-import { initDb } from "./db/init";
 import cors from "cors";
-import { countReset } from "console";
+import { Migrator } from './database/migrate';
+
 config();
 
 const app = express();
@@ -38,7 +38,7 @@ app.use(
 const PORT = process.env.PORT || 3000;
 
 // Initialize our services
-initDb();
+Migrator.migrateToLatest();
 
 // Public routes
 app.get("/version", getVersion)
