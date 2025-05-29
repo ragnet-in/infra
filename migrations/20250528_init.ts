@@ -39,6 +39,7 @@ export const up = async () => {
       org_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
       name VARCHAR(255) NOT NULL,
       url VARCHAR(255) NOT NULL,
+      type VARCHAR(50) NOT NULL,
       last_sync_at TIMESTAMP,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )

@@ -17,6 +17,8 @@ import {
   generateAPIKey, 
   deleteAPIKey,
   addAdminToOrg,
+  initiateDiscordAuth,
+  handleDiscordCallback
 } from "./controller";
 import { authMiddleware } from "./middleware/auth";
 import cors from "cors";
@@ -28,7 +30,7 @@ const app = express();
 app.use(express.json());
 app.use(
   cors({
-    origin: "http://localhost:3002",
+    origin: "http://localhost:3001",
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -59,6 +61,10 @@ app.get("/api/dashboard/:orgId", authMiddleware, getDashboardAnalytics);
 app.get("/api/generateApiKey/:orgId", authMiddleware, generateAPIKey);
 app.delete("/api/deleteApiKey/:orgId", authMiddleware, deleteAPIKey);
 app.post("/api/addAdminToOrg/:orgId", authMiddleware, addAdminToOrg);
+
+app.post("/api/sources/discord/auth", authMiddleware, initiateDiscordAuth);
+app.get("/api/auth/discord/callback", handleDiscordCallback);
+
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
